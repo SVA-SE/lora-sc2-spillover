@@ -45,9 +45,8 @@ soe2 <- read.csv(file="ECDC_surveillance_data_Q_fever.csv")
 # TBE
 soe3 <- read.csv(file="ECDC_surveillance_data_Tick-borne_encephalitis.csv")
 
-comparedf(soe1, soe2)
-comparedf(soe2, soe3)
-
+# comparedf(soe1, soe2)
+# comparedf(soe2, soe3)
 
 # Influenza
 # soe4 <- read.csv(file="ECDC_surveillance_data_Influenza.27.11.24.csv")
@@ -153,7 +152,7 @@ db$human_cases_hab_total <- db$human_c_total/db$human_pop*100000
 summary(db$human_cases_hab) #locally
 summary(db$human_cases_hab_total) # all
 
-summary(db$percentage_local) #percentage of locall
+summary(db$percentage_local) #percentage of local
 
 ```
 
@@ -425,9 +424,18 @@ lira_table_sp <- db %>%
 datatable(lira_table_sp)
 
 # lira_table_sp
-# write.csv(lira_table_sp, file="lira_table_sp.csv")
+# write.csv(lira_table_sp, file="lira_table_sp_sc2.csv")
+```
+
+# database for adagio use
+```{r}
+db_adagio <- db %>% 
+  filter(!human_c_local ==0)   
+
+# write.csv(db_adagio, file = "ECDC_adagio.csv")
 
 ```
+
 
 ```{r}
 lira_table_sp_total <- db %>%
@@ -469,7 +477,25 @@ ggplot(lira_table_sp, aes(x = reorder(UNregions, -human_rate_median), y = human_
   labs(
     title = "Median Human Cases and 95% CI by Disease and UN Region",
     x = "UN Region",
-    y = "Human Cases / 100,000 habitants",
+    y = "Locally acquired Human Cases / 100,000 habitants",
+    color = "Disease"
+  ) +
+  theme(
+    legend.position = "top",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+ggplot(lira_table_sp_total, aes(x = reorder(UNregions, -human_rate_median), y = human_rate_median, color = disease)) +
+  geom_point(size = 3, position = position_dodge(width = 0.1)) +  # Points for median
+  geom_errorbar(aes(ymin = CI05, ymax = CI95), width = 0.2, position = position_dodge(width = 0.5)) +  # Error bars for CI
+  facet_wrap(vars(disease), scales = "free_y") +  # Separate panels for each disease
+  coord_flip() +  # Flip axes for better readability
+  scale_y_log10()+
+  theme_minimal() +
+  labs(
+    title = "Median Human Cases and 95% CI by Disease and UN Region",
+    x = "UN Region",
+    y = "Total reported Human Cases / 100,000 habitants",
     color = "Disease"
   ) +
   theme(
