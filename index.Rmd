@@ -47,11 +47,39 @@ soe3 <- read.csv(file="ECDC_surveillance_data_Tick-borne_encephalitis.csv")
 
 # comparedf(soe1, soe2)
 # comparedf(soe2, soe3)
+```
+
+# WHO
+```{r}
+#Leishmanioses
+setwd("C:/Users/alfredo.acosta/SVA/LiRA_consortium - Documents/WG1 Disease occurrence/datasources/Second-disease-group/spillover/locally adquired cases/")
+# Only taken account because is Leish infantum.
+leishm <- read.csv(file= "WHO_leishm_cutaneus.csv")
+# leishm2 <- read.csv(file= "WHO_leishm_visceral.csv")
+# all.equal(leishm1, leishm2)
+
+# leishm <- rbind(leishm1, leishm2)
+
+soe4 <- leishm %>% 
+  mutate(disease = "leishmaniasis",
+         cases=as.character(FactValueNumeric)) %>% 
+  select(disease, country = Location,
+         time=Period,
+         cases)
 
 # Influenza
 # soe4 <- read.csv(file="ECDC_surveillance_data_Influenza.27.11.24.csv")
 ```
 
+#PAHO
+
+```{r}
+#Leishmanioses
+setwd("C:/Users/alfredo.acosta/SVA/LiRA_consortium - Documents/WG1 Disease occurrence/datasources/Second-disease-group/spillover/locally adquired cases/")
+
+others <- read.csv(file= "wee_vee.csv", sep = ";")
+
+```
 
 ```{r}
 soe <- rbind(soe, soe1, soe2, soe3)
@@ -76,6 +104,19 @@ soe2 <- soe %>%
 
 colnames(soe2) <- c("disease", "country", "time", "perc")
 ```
+
+# Joint ECDC and WHO
+```{r}
+#checking countries in ecdc and who
+soe$RegionName %in% leishm$Location
+leishm$Location %in% soe$RegionName 
+
+soe1 <- rbind(soe1, soe4, others)
+# table(soe1$country)
+# it seems there are no repeated countries
+```
+
+
 # Descriptive
 ```{r}
 # Number of human cases
@@ -86,12 +127,11 @@ soe1 %>%
 
 # Number of countries
 soe1 %>% 
-    group_by(disease) %>%
+  group_by(disease) %>%
   summarise(countries=length(unique(country)))
 
 table(soe$Time)
-table(soe$Time, soe$HealthTopic)
-
+table(soe1$time, soe1$disease)
 ```
 # Loading Adagio database
 ```{r}
@@ -114,6 +154,7 @@ colnames(db) <- c("country", "time", "disease")
 # first index to  fill the human cases db & soe1
 index <- match(paste(db$country, db$time, db$disease), paste(soe1$country, soe1$time, soe1$disease))
 db$human_c_total <- as.numeric(soe1$cases[index])
+db$human_c_total[db$human_c_total == 0] <- NA
 
 # second index to pass the FAO Adagio human population
 index <- match(paste(db$country, db$time), paste(adg_pop$Country, adg_pop$Year))
@@ -138,21 +179,33 @@ table(is.na(db$percentage_local))
 db$human_c_local <- round(ifelse(is.na(db$human_c_total), 0.000001, db$human_c_total) * 
              ifelse(is.na(db$percentage_local), 100, db$percentage_local + 0.0001) / 100, 2)
 
+db$human_c_local[db$human_c_local == 0] <- NA
+
+table(is.na(db$human_c_local))
+
 ```
 
 ## Human cases / 100.000 habitants using FAO
 ```{r}
-db$human_cases_hab <- db$human_c_local/db$human_pop*100000
-db$human_cases_hab_total <- db$human_c_total/db$human_pop*100000
+db$incidence_rate_local       <- db$human_c_local/db$human_pop*100000
+db$incidence_rate_local_total <- db$human_c_total/db$human_pop*100000
 ```
 
 
 # Locally adquired cases and total
 ```{r}
-summary(db$human_cases_hab) #locally
-summary(db$human_cases_hab_total) # all
+# About the difference in number of total and locally adquired cases
+# Difference between total cases and locally adquired in the rate of 10.000 = 2368
+sum(db$human_c_total, na.rm = TRUE) - sum(db$human_c_local, na.rm = TRUE) # all
+
+#percentage of difference 0.0635
+100-((sum(db$human_c_local, na.rm = TRUE)/sum(db$human_c_total, na.rm = TRUE))*100)
 
 summary(db$percentage_local) #percentage of local
+
+# Difference in the rate
+summary(db$incidence_rate_local) #locally
+summary(db$incidence_rate_local_total) #all cases 
 
 ```
 
@@ -177,14 +230,14 @@ db$unr <- unregions$sub.region[match(db$country, unregions$name)]
 ```{r}
 db %>% 
   filter(time > 2003) %>% 
-  filter(!is.na(human_cases_hab)) %>% 
-  ggplot(aes(time, human_cases_hab, group=country))+
+  filter(!is.na(incidence_rate_local)) %>% 
+  ggplot(aes(time, incidence_rate_local, group=country))+
   geom_point()
 
 db %>% 
   filter(time > 2003) %>% 
-  filter(!is.na(human_cases_hab)) %>% 
-  ggplot(aes(time, human_cases_hab, group=country))+
+  filter(!is.na(incidence_rate_local)) %>% 
+  ggplot(aes(time, incidence_rate_local, group=country))+
   geom_point()+
   scale_y_log10()+
   facet_wrap(vars(disease), ncol = 1)
@@ -193,14 +246,14 @@ db %>%
 ```{r}
 db %>% 
   filter(time > 2003) %>% 
-  filter(!is.na(human_cases_hab)) %>% 
-  ggplot(aes(time, human_cases_hab_total, group=country))+
+  filter(!is.na(incidence_rate_local)) %>% 
+  ggplot(aes(time, incidence_rate_local_total, group=country))+
   geom_point()
 
 db %>% 
   filter(time > 2003) %>% 
-  filter(!is.na(human_cases_hab)) %>% 
-  ggplot(aes(time, human_cases_hab_total, group=country))+
+  filter(!is.na(incidence_rate_local)) %>% 
+  ggplot(aes(time, incidence_rate_local_total, group=country))+
   geom_point()+
   scale_y_log10()+
   facet_wrap(vars(disease), ncol = 1)
@@ -216,7 +269,7 @@ diseases <- unique(db$disease)
 generate_plots <- function(disease_name) {
   # Filter data for the specific disease
   disease_data <- db %>% 
-    filter(time > 2003, disease == disease_name, !is.na(human_cases_hab))
+    filter(time > 2003, disease == disease_name, !is.na(incidence_rate_local))
   
   # Check if disease_data is empty
   if (nrow(disease_data) == 0) {
@@ -225,7 +278,7 @@ generate_plots <- function(disease_name) {
   
   # Plot 1: Boxplot per country
   plot1 <- disease_data %>%
-    ggplot(aes(human_cases_hab, color = country)) +
+    ggplot(aes(incidence_rate_local, color = country)) +
     geom_boxplot() +
     scale_x_log10() +
     facet_wrap(vars(country), ncol = 1) +
@@ -237,7 +290,7 @@ generate_plots <- function(disease_name) {
   
   # Plot 2: Boxplot grouped by year
   plot2 <- disease_data %>%
-    ggplot(aes(human_cases_hab, time, group = time)) +
+    ggplot(aes(incidence_rate_local, time, group = time)) +
     geom_boxplot() +
     scale_x_log10() +
     theme_minimal() +
@@ -247,7 +300,7 @@ generate_plots <- function(disease_name) {
   
   # Plot 3: Time-series plot
   plot3 <- disease_data %>%
-    ggplot(aes(time, human_cases_hab, color = country)) +
+    ggplot(aes(time, incidence_rate_local, color = country)) +
     geom_point() +
     geom_line(size = 1) +
     scale_y_log10() +
@@ -290,8 +343,8 @@ db %>%
   filter(time > 2003) %>% 
   # filter(disease == "Rabies") %>% 
   # filter(unr != "Western Asia") %>% 
-  filter(!is.na(human_cases_hab)) %>% 
-  ggplot(aes(human_cases_hab, time, group=time, color=disease))+
+  filter(!is.na(incidence_rate_local)) %>% 
+  ggplot(aes(incidence_rate_local, time, group=time, color=disease))+
   geom_boxplot()+
   scale_x_log10()+
   facet_wrap(vars(disease), ncol = 1)+
@@ -301,8 +354,8 @@ db %>%
   xlab("human cases/100.000 habitants (log scaled) country rates")
 
 db %>% 
-  filter(time > 2003 & !is.na(human_cases_hab | !is.na(disease))) %>% 
-  ggplot(aes(human_cases_hab, unr, group=unr, color=disease))+
+  filter(time > 2003 & !is.na(incidence_rate_local | !is.na(disease))) %>% 
+  ggplot(aes(incidence_rate_local, unr, group=unr, color=disease))+
   geom_boxplot()+
   scale_x_log10()+
   facet_wrap(vars(disease), scales="free", ncol = 1)+
@@ -319,11 +372,11 @@ diseases <- unique(db$disease)
 generate_plots_unr <- function(disease_name) {
   
   disease_data <- db %>% 
-    filter(time > 2003, disease == disease_name, !is.na(human_cases_hab))
+    filter(time > 2003, disease == disease_name, !is.na(incidence_rate_local))
 
   #boxplot by unr 
 p1 <- disease_data %>% 
-  ggplot(aes(human_cases_hab, color=unr))+
+  ggplot(aes(incidence_rate_local, color=unr))+
   geom_boxplot()+
   scale_x_log10()+
   facet_wrap(vars(unr), ncol = 1)+
@@ -335,7 +388,7 @@ p1 <- disease_data %>%
 
 # boxplot by year
 p2 <- disease_data %>% 
-  ggplot(aes(human_cases_hab, time, group=time))+
+  ggplot(aes(incidence_rate_local, time, group=time))+
   geom_boxplot()+
   scale_x_log10()+
   theme_minimal() +
@@ -345,7 +398,7 @@ p2 <- disease_data %>%
 
 # Time series plot
 p3 <- disease_data %>% 
-  ggplot(aes(time, human_cases_hab, color=unr))+
+  ggplot(aes(time, incidence_rate_local, color=unr))+
   geom_point()+
   geom_line(size=1)+
   scale_y_log10()+
@@ -373,92 +426,42 @@ all_plots2
 
 
 ```
+# Lira table median 90 CI
 
-# Calculating cut points and levels by disease and UNregions
 ```{r}
+setwd("C:/Users/alfredo.acosta/SVA/LiRA_consortium - Documents/WG1 Disease occurrence/datasources/Second-disease-group/spillover/locally adquired cases/")
 
-UNRegion_db_unr <- db %>% 
-  group_by(disease, unr) %>% 
-  filter(time > 2003) %>% 
-  filter(unr != "Western Asia") %>% 
-  filter(!is.na(human_cases_hab)) %>%
-  summarise(human_cases_hab_unr=(sum(human_c_local)/sum(human_pop)*100000)) %>% 
-  mutate(name=cut(human_cases_hab_unr, breaks = 3, labels = c("low","medium","high"))) %>% 
-  mutate(range=cut(human_cases_hab_unr, breaks = 3))
-UNRegion_db_unr
-
-
-UNRegion_db <- db %>% 
-  group_by(disease) %>% 
-  filter(time > 2003) %>% 
-  filter(unr != "Western Asia") %>% 
-  filter(!is.na(human_cases_hab)) %>%
-  summarise(human_cases_hab_unr=(sum(human_cases_hab)/sum(human_pop)*100000)) %>% 
-  mutate(name=cut(human_cases_hab_unr, breaks = 3, labels = c("low","medium","high"))) %>% 
-  mutate(range=cut(human_cases_hab_unr, breaks = 3))
-UNRegion_db
-
-```
-
-# General cut points by disease
-```{r}
-
-```
-
-# Lira table median 95 CI
-```{r}
 lira_table_sp <- db %>%
   filter(time > 2003) %>%
-  filter(human_cases_hab > 0) %>% 
-  filter(!is.na(human_cases_hab)) %>%
   group_by(disease, UNregions=unr) %>%
   summarise(
-    human_cases=sum(human_c_local),
-    human_pop=median(human_pop, na.rm = TRUE),
-    human_rate_median=round(quantile(human_cases_hab, probs = 0.5, na.rm = TRUE), 3),
-    CI05 = round(quantile(human_cases_hab, probs = 0.025, na.rm = TRUE), 3),
-    CI95 = round(quantile(human_cases_hab, probs = 0.975, na.rm = TRUE) ,3)) %>%
-  mutate(level=cut(human_rate_median, breaks = 3, labels = c("low","medium","high"))) %>% 
-  arrange(disease, desc(human_rate_median), UNregions)
+    historical_cases=sum(human_c_local, na.rm = TRUE),
+    incidence_rate_median=round(quantile(incidence_rate_local, probs = 0.5, na.rm = TRUE), 6),
+    CI.05 = round(quantile(incidence_rate_local, probs = 0.05, na.rm = TRUE), 3),
+    CI.95 = round(quantile(incidence_rate_local, probs = 0.95, na.rm = TRUE) ,3)) %>%
+  filter(incidence_rate_median > 0)
+
+# Step 2: Compute breaks across all diseases and all UN regions
+breaks <- quantile(lira_table_sp$incidence_rate_median, probs = seq(0, 1, length.out = 4), na.rm = TRUE)
+
+# Step 3: Merge yearly data and apply global level classification
+lira_table_sp <- lira_table_sp %>%
+  mutate(level = cut(incidence_rate_median, breaks = breaks, labels = c("low", "medium", "high"), include.lowest = TRUE)) %>%
+  filter(incidence_rate_median > 0) %>% 
+  arrange(disease, incidence_rate_median)
 
 datatable(lira_table_sp)
-
 # lira_table_sp
-# write.csv(lira_table_sp, file="lira_table_sp_sc2.csv")
+# write.csv(lira_table_sp, file="lira_table_sp_sc2NEW.csv")
+# # write.csv(db, file="data.incidence.csv")
 ```
+
 
 # database for adagio use
 ```{r}
 db_adagio <- db %>% 
   filter(!human_c_local ==0)   
-
 # write.csv(db_adagio, file = "ECDC_adagio.csv")
-
-```
-
-
-```{r}
-lira_table_sp_total <- db %>%
-  filter(time > 2003) %>%
-  filter(human_cases_hab > 0) %>%
-  filter(!is.na(human_cases_hab_total)) %>%
-  group_by(disease, UNregions = unr) %>%
-  summarise(
-    human_cases = sum(human_c_total, na.rm = TRUE),
-    human_c_total_sum = sum(human_c_total, na.rm = TRUE),
-    human_c_local_sum = sum(human_c_local, na.rm = TRUE),
-    diference = round((human_c_total_sum - human_c_local_sum) / human_c_total_sum * 100,2),
-    human_pop = median(human_pop, na.rm = TRUE),
-    human_rate_median = round(quantile(human_cases_hab_total, probs = 0.5, na.rm = TRUE), 3),
-    CI05 = round(quantile(human_cases_hab_total, probs = 0.025, na.rm = TRUE), 3),
-    CI95 = round(quantile(human_cases_hab_total, probs = 0.975, na.rm = TRUE), 3),
-    .groups = "keep"
-  ) %>%
-  mutate(level = cut(human_rate_median, breaks = 3, labels = c("low", "medium", "high"))) %>%
-  arrange(disease, desc(human_rate_median), UNregions)
-
-datatable(lira_table_sp_total)
-
 ```
 
 
@@ -467,9 +470,9 @@ datatable(lira_table_sp_total)
 library(ggplot2)
 
 # Visualization
-ggplot(lira_table_sp, aes(x = reorder(UNregions, -human_rate_median), y = human_rate_median, color = disease)) +
+ggplot(lira_table_sp, aes(x = reorder(UNregions, -incidence_rate_median), y = incidence_rate_median, color = disease)) +
   geom_point(size = 3, position = position_dodge(width = 0.1)) +  # Points for median
-  geom_errorbar(aes(ymin = CI05, ymax = CI95), width = 0.2, position = position_dodge(width = 0.5)) +  # Error bars for CI
+  geom_errorbar(aes(ymin = CI.05, ymax = CI.95), width = 0.2, position = position_dodge(width = 0.5)) +  # Error bars for CI
   facet_wrap(vars(disease), scales = "free_y") +  # Separate panels for each disease
   coord_flip() +  # Flip axes for better readability
   scale_y_log10()+
@@ -485,29 +488,11 @@ ggplot(lira_table_sp, aes(x = reorder(UNregions, -human_rate_median), y = human_
     axis.text.x = element_text(angle = 45, hjust = 1)
   )
 
-ggplot(lira_table_sp_total, aes(x = reorder(UNregions, -human_rate_median), y = human_rate_median, color = disease)) +
-  geom_point(size = 3, position = position_dodge(width = 0.1)) +  # Points for median
-  geom_errorbar(aes(ymin = CI05, ymax = CI95), width = 0.2, position = position_dodge(width = 0.5)) +  # Error bars for CI
-  facet_wrap(vars(disease), scales = "free_y") +  # Separate panels for each disease
-  coord_flip() +  # Flip axes for better readability
-  scale_y_log10()+
-  theme_minimal() +
-  labs(
-    title = "Median Human Cases and 95% CI by Disease and UN Region",
-    x = "UN Region",
-    y = "Total reported Human Cases / 100,000 habitants",
-    color = "Disease"
-  ) +
-  theme(
-    legend.position = "top",
-    axis.text.x = element_text(angle = 45, hjust = 1)
-  )
-
 ```
 
 # Graph 
 ```{r}
-ggplot(lira_table_sp, aes(x = level, y = human_rate_median, fill = level)) +
+ggplot(lira_table_sp, aes(x = level, y = incidence_rate_median, fill = level)) +
   geom_boxplot(outlier.shape = NA, alpha = 0.8) +  # Boxplot for distribution
   geom_jitter(aes(color = level), width = 0.2, size = 2, alpha = 0.6) +  # Add points for individual medians
   facet_wrap(vars(disease), scales = "free_y") +  # Separate panels for each disease
@@ -526,6 +511,185 @@ ggplot(lira_table_sp, aes(x = level, y = human_rate_median, fill = level)) +
   )
 
 ```
+
+#Aditional filters to visualize and check over the years
+# Human cases per regions and total cases for years from 2011 per quartiles
+```{r}
+setwd("C:/Users/alfredo.acosta/SVA/LiRA_consortium - Documents/WG1 Disease occurrence/datasources/Second-disease-group/spillover/locally adquired cases/")
+
+library(dplyr)
+library(tidyr)
+
+lira_table_sp <- db %>%
+  filter(time > 2010) %>%
+  # filter(str_detect(unr,"Europe")) %>% 
+  group_by(disease, UNregions = unr) %>%
+  summarise(
+    historical_cases = sum(human_c_local, na.rm = TRUE),  # Total cases across all years
+    human_pop = round(mean(human_pop, na.rm = TRUE), 0),
+    # incidence_rate_median = round(quantile(incidence_rate_local, probs = 0.5, na.rm = TRUE), 6),
+    q25 = round(quantile(incidence_rate_local, probs = 0.05, na.rm = TRUE), 3),
+    q50 = round(quantile(incidence_rate_local, probs = 0.5, na.rm = TRUE), 3),
+    q75 = round(quantile(incidence_rate_local, probs = 0.75, na.rm = TRUE), 3),
+    q99 = round(quantile(incidence_rate_local, probs = 0.99, na.rm = TRUE), 3),
+    .groups = "drop"
+  ) %>%
+  left_join(
+    db %>%
+      filter(time > 2010) %>%
+      group_by(disease, UNregions = unr, time) %>%
+      summarise(yearly_cases = sum(human_c_local, na.rm = TRUE), .groups = "drop") %>%
+      pivot_wider(names_from = time, values_from = yearly_cases, values_fill = list(yearly_cases = 0)),
+    by = c("disease", "UNregions")
+  ) %>%
+  filter(q50 > 0)
+
+datatable(lira_table_sp)
+# write.csv(lira_table_sp, file="lira_table_sp_sc2NEW_spread_world.csv")
+```
+# Human cases per regions and total cases for years from 2011
+```{r}
+setwd("C:/Users/alfredo.acosta/SVA/LiRA_consortium - Documents/WG1 Disease occurrence/datasources/Second-disease-group/spillover/locally adquired cases/")
+
+library(dplyr)
+library(tidyr)
+
+lira_table_sp <- db %>%
+  filter(time > 2021) %>%
+  # filter(str_detect(unr,"Europe")) %>%
+  group_by(disease) %>%
+  summarise(
+    historical_cases = sum(human_c_local, na.rm = TRUE),  # Total cases across all years
+    q25 = round(quantile(incidence_rate_local, probs = 0.05, na.rm = TRUE), 3),
+    q50 = round(quantile(incidence_rate_local, probs = 0.5, na.rm = TRUE), 3),
+    q75 = round(quantile(incidence_rate_local, probs = 0.75, na.rm = TRUE), 3),
+    q99 = round(quantile(incidence_rate_local, probs = 0.99, na.rm = TRUE), 3),
+    .groups = "drop"
+  ) %>%
+  left_join(
+    db %>%
+      filter(time > 2017) %>%
+      # filter(str_detect(unr,"Europe")) %>%
+      group_by(disease,  time) %>%
+      summarise(yearly_cases = sum(human_c_local, na.rm = TRUE), .groups = "drop") %>%
+      pivot_wider(names_from = time, values_from = yearly_cases, values_fill = list(yearly_cases = 0)),
+    by = c("disease")
+  ) %>%
+  filter(q50 > 0)
+
+datatable(lira_table_sp)
+# write.csv(lira_table_sp, file="lira_table_sp_sc2NEW_spread_world.csv")
+```
+
+
+# Observed human incidences per EU region last since 2011 
+```{r}
+setwd("C:/Users/alfredo.acosta/SVA/LiRA_consortium - Documents/WG1 Disease occurrence/datasources/Second-disease-group/spillover/locally adquired cases/")
+lira_table_sp <- db %>%
+  filter(time > 2003) %>%
+  group_by(disease, UNregions = unr) %>%
+  # filter(str_detect(unr,"Europe")) %>% 
+  summarise(
+    historical_cases = sum(human_c_local, na.rm = TRUE),  # Total cases across all years
+    human_pop = round(mean(human_pop, na.rm = TRUE), 0),
+    # incidence_rate_median = round(quantile(incidence_rate_local, probs = 0.5, na.rm = TRUE), 6),
+    q25 = round(quantile(incidence_rate_local, probs = 0.05, na.rm = TRUE), 3),
+    q50 = round(quantile(incidence_rate_local, probs = 0.5, na.rm = TRUE), 3),
+    q75 = round(quantile(incidence_rate_local, probs = 0.75, na.rm = TRUE), 3),
+    q99 = round(quantile(incidence_rate_local, probs = 0.99, na.rm = TRUE), 3),
+    .groups = "drop"
+  ) %>%
+  left_join(
+    db %>%
+      filter(time > 2003) %>%
+      group_by(disease, UNregions = unr, time) %>%
+      summarise(yearly_cases = sum(human_c_local, na.rm = TRUE), .groups = "drop") %>%
+      pivot_wider(names_from = time, values_from = yearly_cases, values_fill = list(yearly_cases = 0)),
+    by = c("disease", "UNregions")
+  ) %>%
+  filter(q50 > 0)
+
+datatable(lira_table_sp)
+
+# write.csv(lira_table_sp, file="lira_table_sp_sc2NEW_spread_from_2011.csv")
+
+setwd("C:/Users/alfredo.acosta/SVA/LiRA_consortium - Documents/WG1 Disease occurrence/datasources/Second-disease-group/spillover/locally adquired cases/")
+
+lira_table_sp <- db %>%
+  filter(time > 2021) %>%
+  group_by(disease, UNregions = unr) %>%
+  filter(str_detect(unr,"Europe")) %>% 
+  summarise(
+    historical_cases = sum(human_c_local, na.rm = TRUE),  # Total cases across all years
+    human_pop = round(mean(human_pop, na.rm = TRUE), 0),
+    # incidence_rate_median = round(quantile(incidence_rate_local, probs = 0.5, na.rm = TRUE), 6),
+    q25 = round(quantile(incidence_rate_local, probs = 0.05, na.rm = TRUE), 3),
+    q50 = round(quantile(incidence_rate_local, probs = 0.5, na.rm = TRUE), 3),
+    q75 = round(quantile(incidence_rate_local, probs = 0.75, na.rm = TRUE), 3),
+    q99 = round(quantile(incidence_rate_local, probs = 0.99, na.rm = TRUE), 3),
+    .groups = "drop"
+  ) %>%
+  left_join(
+    db %>%
+      filter(time > 2021) %>%
+      group_by(disease, UNregions = unr, time) %>%
+      summarise(yearly_cases = sum(human_c_local, na.rm = TRUE), .groups = "drop") %>%
+      pivot_wider(names_from = time, values_from = yearly_cases, values_fill = list(yearly_cases = 0)),
+    by = c("disease", "UNregions")
+  ) %>%
+  filter(q50 > 0)
+
+datatable(lira_table_sp)
+
+# write.csv(lira_table_sp, file="lira_table_sp_sc2NEW_spread_from_2022.csv")
+
+
+
+```
+
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(DT)
+
+# Step 1: Compute aggregated values per disease and UN region
+lira_table_sp <- db %>%
+  filter(time > 2010) %>%
+  group_by(disease, UNregions = unr) %>%
+  summarise(
+    historical_cases = sum(human_c_local, na.rm = TRUE),
+    human_pop = round(mean(human_pop, na.rm = TRUE), 0),
+    incidence_rate_median = round(quantile(incidence_rate_local, probs = 0.5, na.rm = TRUE), 6),
+    CI.05 = round(quantile(incidence_rate_local, probs = 0.05, na.rm = TRUE), 3),
+    CI.95 = round(quantile(incidence_rate_local, probs = 0.95, na.rm = TRUE), 3),
+    .groups = "drop"
+  )
+
+# Step 2: Compute breaks across all diseases and all UN regions
+breaks <- quantile(lira_table_sp$incidence_rate_median, probs = seq(0, 1, length.out = 4), na.rm = TRUE)
+
+# Step 3: Merge yearly data and apply global level classification
+lira_table_sp <- lira_table_sp %>%
+  left_join(
+    db %>%
+      filter(time > 2010) %>%
+      group_by(disease, UNregions = unr, time) %>%
+      summarise(yearly_cases = sum(human_c_local, na.rm = TRUE), .groups = "drop") %>%
+      pivot_wider(names_from = time, values_from = yearly_cases, values_fill = list(yearly_cases = 0)),
+    by = c("disease", "UNregions")
+  ) %>%
+  mutate(level = cut(incidence_rate_median, breaks = breaks, labels = c("low", "medium", "high"), include.lowest = TRUE)) %>%
+  filter(incidence_rate_median > 0)
+
+datatable(lira_table_sp)
+
+```
+
+
+
+
 
 # Credits Acosta, Alfredo PhD<sup>1</sup>.
 **SVA<sup>1</sup>**: SVA <http://www.sva.se/>. 
